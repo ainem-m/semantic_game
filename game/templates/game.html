@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Meaning Space Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+    <h1 class="text-2xl font-bold mb-4">Meaning Space Game</h1>
+    <div id="scatter" class="w-full max-w-4xl h-96 bg-white shadow rounded mb-6"></div>
+    <div class="bg-white shadow rounded p-4 w-full max-w-md">
+        <h2 class="font-semibold mb-2" id="target-word">Target: ...</h2>
+        <form id="answer" class="space-y-2">
+            <input name="w1" class="w-full border p-2 rounded" placeholder="単語 1" />
+            <input name="w2" class="w-full border p-2 rounded" placeholder="単語 2" />
+            <input name="w3" class="w-full border p-2 rounded" placeholder="単語 3" />
+            <input name="player" class="w-full border p-2 rounded" placeholder="名前 (任意)" />
+            <button class="w-full bg-blue-600 text-white py-2 rounded">送信</button>
+        </form>
+        <pre id="result" class="mt-4 text-sm"></pre>
+    </div>
+
+    <script>
+        const scatterDiv = document.getElementById("scatter");
+        const targetSpan = document.getElementById("target-word");
+        function fetchTarget() {
+            fetch("/api/target").then(r => r.json()).then(d => {
+                window.currentTargetId = d.id;
+                targetSpan.textContent = `Target: ${d.word.text}`;
+            });
+        }
+        function fetchWords() {
+            fetch("/api/words").then(r => r.json()).then(words => {
+                const filtered = words.filter(w => w.x != null && w.y != null && !isNaN(w.x) && !isNaN(w.y));
+                Plotly.newPlot(scatterDiv, [{
+                    x: filtered.map(w => w.x),
+                    y: filtered.map(w => w.y),
+                    mode: 'markers+text',
+                    text: filtered.map(w => w.text),
+                    textposition: 'top center'
+                }]);
+            });
+        }
+        fetchTarget();
+        fetchWords();
+        document.getElementById("answer").addEventListener("submit", e => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const body = {
+                player: fd.get("player") || "anon",
+                target_id: window.currentTargetId,
+                words: [fd.get("w1"), fd.get("w2"), fd.get("w3")]
+            };
+
+            // 🔄 送信ボタンをローディングに
+            const button = document.querySelector("#answer button");
+            button.disabled = true;
+            button.innerHTML = "送信中... 🔄";
+
+            // 🔄 結果エリアに仮のアニメーション
+            const resultDiv = document.getElementById("result");
+            resultDiv.innerHTML = `<div class="text-gray-500 animate-pulse">結果を計算中...</div>`;
+
+            fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+                .then(r => r.json()).then(res => {
+                    resultDiv.innerHTML = `
+                <div class="p-4 bg-green-100 rounded shadow">
+                    <h3 class="text-xl font-bold mb-2">スコア: ${res.score}</h3>
+                    <table class="w-full text-left border">
+                        <thead>
+                            <tr><th>単語</th><th>類似度</th></tr>
+                        </thead>
+                        <tbody>
+                            ${body.words.map((w, i) => `<tr><td>${w}</td><td>${(res.similarities[i] * 100).toFixed(2)}%</td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+                    // マップも更新
+                    fetchWords();
+                })
+                .finally(() => {
+                    // ボタン戻す
+                    button.disabled = false;
+                    button.innerHTML = "送信";
+                });
+        });
+    </script>
+</body>
+
+</html>

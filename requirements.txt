@@ -1,0 +1,8 @@
+django
+djangorestframework
+gunicorn
+openai>=1.0.0
+scikit-learn
+numpy
+umap-learn
+plotly

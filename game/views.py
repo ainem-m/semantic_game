@@ -53,24 +53,28 @@ def get_embedding(text: str) -> list:  # 型ヒントを list に変更
     return resp.data[0].embedding
 
 
+# game/views.py の ensure_word 修正案
 def ensure_word(text: str) -> Word:
     """
     指定されたテキストのWordオブジェクトを取得または作成し、embeddingを確実に持つようにする。
     座標(tsne_x, tsne_y)はこの関数では設定せず、バッチ処理に任せる。
     """
-    word, created = Word.objects.get_or_create(text=text)
-
-    if created or not word.embedding:
-        # 新規作成時または既存でもembeddingがない場合
-        word.embedding = get_embedding(text)
-        # tsne_x, tsne_y はバッチ処理で設定するため、ここではNoneのままか明示的にNoneにする
-        word.tsne_x = None
-        word.tsne_y = None
-        word.save(update_fields=["embedding", "tsne_x", "tsne_y"])
-    # elif word.embedding and (word.tsne_x is None or word.tsne_y is None):
-    # embeddingはあり、座標がない場合はそのまま（バッチ処理待ち）
-    # 特に何もしなくてよい
-
+    try:
+        word = Word.objects.get(text=text)
+        if not word.embedding:  # 既存だがembeddingがない場合 (レアケースだが念のため)
+            print(f"Word '{text}' found but embedding is missing. Fetching embedding.")
+            word.embedding = get_embedding(text)
+            # tsne_x, tsne_y は既にNoneのはずなので、ここでは変更しないか、明示的にNoneのままにする
+            word.save(update_fields=["embedding"])
+    except Word.DoesNotExist:
+        print(f"Word '{text}' not found. Creating new entry with embedding.")
+        embedding_data = get_embedding(text)
+        word = Word.objects.create(
+            text=text,
+            embedding=embedding_data,
+            tsne_x=None,  # 明示的にNoneで初期化
+            tsne_y=None,
+        )
     return word
 
 

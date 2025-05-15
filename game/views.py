@@ -1,4 +1,5 @@
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
@@ -12,6 +13,7 @@ from .serializers import (
     TargetSerializer,
     ScoreSubmitSerializer,
     ScoreResponseSerializer,
+    PlayerScoreSerializer,
 )
 import umap
 
@@ -104,3 +106,23 @@ class ScoreView(APIView):
                 score=score_int,
             )
         return Response(ScoreResponseSerializer(score_obj).data)
+
+
+class ScoreRankingView(ListAPIView):  # ListAPIViewを継承
+    serializer_class = PlayerScoreSerializer
+
+    def get_queryset(self):
+        # スコアの高い順に並べ、重複するプレイヤーは最新のハイスコアのみ採用する想定
+        # もし単純に全スコアからTOP3ならもっとシンプル
+        # ここでは、各プレイヤーの最高スコアでランキングを作る例：
+
+        # 各プレイヤーの最高スコアを取得する (サブクエリやWindow関数を使っても良いが、ここではシンプルな方法で)
+        # もっと効率的な方法はDBによって異なる (例: PostgreSQLのDISTINCT ON)
+        # SQLiteでは少し工夫が必要
+
+        # 方法1: 各プレイヤーの最高スコアを持つScoreオブジェクトIDを取得し、それでフィルタリング
+        # これは少し複雑になるので、もっとシンプルな「全スコアのトップ3」で一旦実装します。
+        # プロジェクトの要件に応じて、より高度なランキングロジックを検討してください。
+
+        # 単純に全スコアの中から上位3件を取得
+        return Score.objects.order_by("-score")[:3]

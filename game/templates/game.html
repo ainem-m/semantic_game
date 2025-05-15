@@ -6,87 +6,313 @@
     <title>Meaning Space Game</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .pulsate {
+            animation: pulsate 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulsate {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Plotlyのテキストが選択されるのを防ぐ (任意) */
+        .js-plotly-plot .plotly .cursor-pointer {
+            cursor: default !important;
+        }
+    </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
-    <h1 class="text-2xl font-bold mb-4">Meaning Space Game</h1>
-    <div id="scatter" class="w-full max-w-4xl h-96 bg-white shadow rounded mb-6"></div>
-    <div class="bg-white shadow rounded p-4 w-full max-w-md">
-        <h2 class="font-semibold mb-2" id="target-word">target</h2>
-        <form id="answer" class="space-y-2">
-            <input name="w1" class="w-full border p-2 rounded" placeholder="単語 1" />
-            <input name="w2" class="w-full border p-2 rounded" placeholder="単語 2" />
-            <input name="w3" class="w-full border p-2 rounded" placeholder="単語 3" />
-            <input name="player" class="w-full border p-2 rounded" placeholder="名前 (任意)" />
-            <button class="w-full bg-blue-600 text-white py-2 rounded">送信</button>
-        </form>
-        <pre id="result" class="mt-4 text-sm"></pre>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6 font-sans">
+    <h1 class="text-4xl font-bold mb-6 text-indigo-600">Meaning Space Game</h1>
+
+    <!-- 単語マップ表示エリア -->
+    <div id="scatter" class="w-full max-w-4xl h-96 bg-white shadow-xl rounded-lg mb-8 border border-gray-200"></div>
+
+    <!-- メインコンテンツエリア (フォームと結果表示) -->
+    <div class="w-full max-w-md">
+        <div class="bg-white shadow-xl rounded-lg p-6 mb-8 border border-gray-200">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700" id="target-word">Target: ...</h2>
+            <form id="answer" class="space-y-4">
+                <div>
+                    <label for="w1" class="block text-sm font-medium text-gray-700">単語 1</label>
+                    <input id="w1" name="w1"
+                        class="mt-1 w-full border border-gray-300 p-3 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="関連する単語を入力" />
+                </div>
+                <div>
+                    <label for="w2" class="block text-sm font-medium text-gray-700">単語 2</label>
+                    <input id="w2" name="w2"
+                        class="mt-1 w-full border border-gray-300 p-3 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="関連する単語を入力" />
+                </div>
+                <div>
+                    <label for="w3" class="block text-sm font-medium text-gray-700">単語 3</label>
+                    <input id="w3" name="w3"
+                        class="mt-1 w-full border border-gray-300 p-3 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="関連する単語を入力" />
+                </div>
+                <div>
+                    <label for="player" class="block text-sm font-medium text-gray-700">お名前 (任意)</label>
+                    <input id="player" name="player"
+                        class="mt-1 w-full border border-gray-300 p-3 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="プレイヤー名" />
+                </div>
+                <button type="submit"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-md font-semibold shadow-md transition duration-150 ease-in-out">
+                    送信
+                </button>
+            </form>
+        </div>
+
+        <!-- スコア結果表示エリア -->
+        <div id="result-area" class="mb-8">
+            <!-- JavaScriptでここにスコア結果が挿入される -->
+        </div>
+
+        <!-- ランキング表示エリア -->
+        <div id="ranking-container" class="bg-white shadow-xl rounded-lg p-6 border border-gray-200">
+            <h2 class="text-2xl font-bold mb-4 text-center text-yellow-500">🏆 TOP 3 Ranking 🏆</h2>
+            <ul id="ranking-list" class="list-none p-0 space-y-3">
+                <li class="text-gray-500 text-center py-2">ランキングを読み込み中...</li>
+            </ul>
+        </div>
     </div>
 
     <script>
         const scatterDiv = document.getElementById("scatter");
         const targetSpan = document.getElementById("target-word");
+        const resultArea = document.getElementById("result-area");
+        const rankingList = document.getElementById("ranking-list");
+
+        let currentTargetWordText = null; // 現在のターゲット単語名を保持する変数
+
         function fetchTarget() {
-            fetch("/api/target").then(r => r.json()).then(d => {
-                window.currentTargetId = d.id;
-                targetSpan.textContent = `この言葉に似た言葉を3つ挙げよ: ${d.word.text}`;
-            });
+            targetSpan.textContent = 'Target: 読み込み中...';
+            fetch("/api/target")
+                .then(r => r.json())
+                .then(d => {
+                    if (d.id && d.word && d.word.text) {
+                        window.currentTargetId = d.id;
+                        currentTargetWordText = d.word.text;
+                        targetSpan.textContent = `Target: ${d.word.text}`;
+                    } else {
+                        targetSpan.textContent = 'Target: 取得失敗';
+                        currentTargetWordText = null;
+                        console.error("Invalid target data:", d);
+                    }
+                    fetchWords(); // ターゲット取得後にマップを再描画
+                }).catch(err => {
+                    targetSpan.textContent = 'Target: 取得エラー';
+                    currentTargetWordText = null;
+                    console.error("Error fetching target:", err);
+                    fetchWords(); // エラー時もマップ描画試行
+                });
         }
+
         function fetchWords() {
-            fetch("/api/words").then(r => r.json()).then(words => {
-                const filtered = words.filter(w => w.x != null && w.y != null && !isNaN(w.x) && !isNaN(w.y));
-                Plotly.newPlot(scatterDiv, [{
-                    x: filtered.map(w => w.x),
-                    y: filtered.map(w => w.y),
-                    mode: 'markers+text',
-                    text: filtered.map(w => w.text),
-                    textposition: 'top center'
-                }]);
-            });
+            fetch("/api/words")
+                .then(r => r.json())
+                .then(wordsData => {
+                    const allWords = wordsData.filter(w => w.x != null && w.y != null && !isNaN(w.x) && !isNaN(w.y));
+
+                    let targetWordTrace = null;
+                    const otherWords = [];
+
+                    allWords.forEach(word => {
+                        if (currentTargetWordText && word.text === currentTargetWordText) {
+                            targetWordTrace = {
+                                x: [word.x],
+                                y: [word.y],
+                                mode: 'markers+text',
+                                text: [word.text],
+                                textposition: 'bottom center',
+                                type: 'scatter',
+                                name: 'Target Word',
+                                marker: {
+                                    size: 18, // 少し大きく
+                                    color: 'rgba(239, 68, 68, 1)', // Red-500
+                                    symbol: 'star', // ★ 星形マーカー ★
+                                    line: {
+                                        color: 'rgba(153, 27, 27, 1)', // Red-800 (枠線)
+                                        width: 2
+                                    }
+                                },
+                                textfont: {
+                                    family: 'Arial, sans-serif',
+                                    size: 14,
+                                    color: 'rgba(191, 25, 25, 1)' // Red-700 (文字色)
+                                }
+                            };
+                        } else {
+                            otherWords.push(word);
+                        }
+                    });
+
+                    const otherWordsTrace = {
+                        x: otherWords.map(w => w.x),
+                        y: otherWords.map(w => w.y),
+                        mode: 'markers+text',
+                        text: otherWords.map(w => w.text),
+                        textposition: 'top center',
+                        type: 'scatter',
+                        name: 'Other Words',
+                        marker: {
+                            size: 10,
+                            color: 'rgba(79, 70, 229, 0.7)' // Indigo-600
+                        },
+                        textfont: {
+                            family: 'Arial, sans-serif',
+                            size: 12,
+                            color: '#333'
+                        }
+                    };
+
+                    const tracesToPlot = [otherWordsTrace];
+                    if (targetWordTrace) {
+                        tracesToPlot.push(targetWordTrace); // ターゲットを後から追加して重ねる
+                    }
+
+                    const layout = {
+                        xaxis: { showticklabels: false, ticks: '', showgrid: false, zeroline: false, fixedrange: true }, // fixedrangeでズームやパンを無効化
+                        yaxis: { showticklabels: false, ticks: '', showgrid: false, zeroline: false, fixedrange: true }, // fixedrangeでズームやパンを無効化
+                        margin: { l: 10, r: 10, b: 10, t: 10, pad: 0 }, // マージンを詰める
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor: 'rgba(0,0,0,0)',
+                        showlegend: false,
+                        hovermode: false // ホバーも無効化してシンプルに
+                    };
+
+                    Plotly.newPlot(scatterDiv, tracesToPlot, layout, {
+                        responsive: true,
+                        displayModeBar: false // Plotlyのモードバーも非表示に
+                    });
+
+                }).catch(err => {
+                    console.error("Error fetching words for plot:", err);
+                    scatterDiv.innerHTML = '<p class="text-center text-red-500 p-4">単語マップの読み込みに失敗しました。</p>';
+                });
         }
-        fetchTarget();
-        fetchWords();
+
+        function fetchRanking() {
+            rankingList.innerHTML = '<li class="text-gray-500 text-center py-2 pulsate">ランキングを更新中...</li>';
+            fetch("/api/ranking")
+                .then(r => {
+                    if (!r.ok) throw new Error(`Ranking fetch failed with status ${r.status}`);
+                    return r.json();
+                })
+                .then(rankingData => {
+                    rankingList.innerHTML = "";
+                    if (rankingData && rankingData.length > 0) {
+                        rankingData.forEach((entry, index) => {
+                            const listItem = document.createElement("li");
+                            listItem.className = "py-3 px-2 border-b border-gray-200 flex justify-between items-center text-lg";
+                            let medal = "";
+                            if (index === 0) medal = "🥇";
+                            else if (index === 1) medal = "🥈";
+                            else if (index === 2) medal = "🥉";
+
+                            listItem.innerHTML = `
+                                <span class="font-semibold text-gray-700">${medal} ${entry.player_name || '名無しさん'}</span>
+                                <span class="text-indigo-600 font-bold">${entry.score} pts</span>
+                            `;
+                            rankingList.appendChild(listItem);
+                        });
+                        if (rankingList.lastChild) rankingList.lastChild.classList.remove('border-b');
+                    } else {
+                        rankingList.innerHTML = '<li class="text-gray-500 text-center py-2">まだランキングデータがありません。</li>';
+                    }
+                })
+                .catch(error => {
+                    console.error("Failed to fetch ranking:", error);
+                    rankingList.innerHTML = `<li class="text-red-500 text-center py-2">ランキングの読み込みに失敗しました: ${error.message}</li>`;
+                });
+        }
+
+        // 初期読み込み
+        fetchTarget(); // fetchTarget内でfetchWordsが呼ばれる
+        fetchRanking();
+
         document.getElementById("answer").addEventListener("submit", e => {
             e.preventDefault();
             const fd = new FormData(e.target);
+            const wordsArray = [fd.get("w1"), fd.get("w2"), fd.get("w3")].filter(w => w && w.trim() !== "");
+
+            if (wordsArray.length < 3) {
+                resultArea.innerHTML = `
+                    <div class="p-4 bg-red-100 border border-red-300 rounded-md shadow text-center">
+                        <p class="text-red-700 font-semibold">単語を3つ入力してください。</p>
+                    </div>`;
+                return;
+            }
+
             const body = {
                 player: fd.get("player") || "anon",
                 target_id: window.currentTargetId,
-                words: [fd.get("w1"), fd.get("w2"), fd.get("w3")]
+                words: wordsArray
             };
 
-            // 🔄 送信ボタンをローディングに
-            const button = document.querySelector("#answer button");
+            const button = e.target.querySelector("button[type='submit']");
+            const originalButtonText = button.innerHTML;
             button.disabled = true;
-            button.innerHTML = "送信中... 🔄";
-
-            // 🔄 結果エリアに仮のアニメーション
-            const resultDiv = document.getElementById("result");
-            resultDiv.innerHTML = `<div class="text-gray-500 animate-pulse">結果を計算中...</div>`;
+            button.innerHTML = `<span class="pulsate">送信中... 🔄</span>`;
+            resultArea.innerHTML = `<div class="p-4 bg-blue-50 border border-blue-200 rounded-md shadow text-center pulsate"><p class="text-blue-600">結果を計算中...</p></div>`;
 
             fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-                .then(r => r.json()).then(res => {
-                    resultDiv.innerHTML = `
-                <div class="p-4 bg-green-100 rounded shadow">
-                    <h3 class="text-xl font-bold mb-2">スコア: ${res.score}</h3>
-                    <table class="w-full text-left border">
-                        <thead>
-                            <tr><th>単語</th><th>類似度</th></tr>
-                        </thead>
-                        <tbody>
-                            ${body.words.map((w, i) => `<tr><td>${w}</td><td>${(res.similarities[i] * 100).toFixed(2)}%</td></tr>`).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-
-                    // マップも更新
-                    //fetchWords();
+                .then(r => {
+                    if (!r.ok) {
+                        return r.json().then(err => {
+                            const errorMessage = err.detail || (typeof err === 'string' ? err : `エラーが発生しました (Status: ${r.status})`);
+                            throw new Error(errorMessage);
+                        });
+                    }
+                    return r.json();
+                })
+                .then(res => {
+                    if (res.score == null || res.similarities == null) {
+                        throw new Error("サーバーからのレスポンス形式が正しくありません。");
+                    }
+                    resultArea.innerHTML = `
+                    <div class="p-6 bg-green-50 border border-green-300 rounded-lg shadow">
+                        <h3 class="text-2xl font-bold mb-3 text-green-700 text-center">スコア: ${res.score}</h3>
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-green-100">
+                                <tr>
+                                    <th class="p-2 font-semibold text-gray-600">提出した単語</th>
+                                    <th class="p-2 font-semibold text-gray-600 text-right">ターゲットとの類似度</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${body.words.map((w, i) => `
+                                    <tr class="border-b border-green-200">
+                                        <td class="p-2 text-gray-700">${w}</td>
+                                        <td class="p-2 text-gray-700 text-right">${(res.similarities[i] * 100).toFixed(1)}%</td>
+                                    </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                    fetchWords();
+                    fetchRanking();
+                    e.target.reset();
+                })
+                .catch(error => {
+                    console.error('Score submission error:', error);
+                    resultArea.innerHTML = `
+                        <div class="p-4 bg-red-100 border border-red-300 rounded-md shadow text-center">
+                            <p class="text-red-700 font-semibold">エラー: ${error.message}</p>
+                        </div>`;
                 })
                 .finally(() => {
-                    // ボタン戻す
                     button.disabled = false;
-                    button.innerHTML = "送信";
+                    button.innerHTML = originalButtonText;
                 });
         });
     </script>

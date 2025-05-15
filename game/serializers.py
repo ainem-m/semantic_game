@@ -28,3 +28,10 @@ class ScoreResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Score
         fields = ["score", "similarities"]
+
+
+class PlayerScoreSerializer(serializers.Serializer):
+    player_name = serializers.CharField(
+        source="player.name"
+    )  # ここを 'player.name' に変更
+    score = serializers.IntegerField()

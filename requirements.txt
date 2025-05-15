@@ -6,3 +6,4 @@ scikit-learn
 numpy
 umap-learn
 plotly
+django-background-tasks

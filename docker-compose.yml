@@ -1,9 +1,38 @@
 services:
   web:
+    # Django + Gunicorn を実行するWebサービス
     build: .
     ports:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DJANGO_SETTINGS_MODULE=config.settings
+      # - CELERY_BROKER_URL=redis://redis:6379/0 # もしCeleryなら (今回はdjango-background-tasks)
     volumes:
       - .:/app
+    # depends_on: # もしDBコンテナがあるなら
+    #   - db 
+    #   - redis # もしCeleryでRedisを使うなら
+
+    # django-background-tasks のワーカーサービス
+    # docker-compose.yml (taskworker部分の抜粋)
+  taskworker:
+    build: .
+    command: python manage.py process_tasks
+    volumes:
+      - .:/app
+    environment:
+      # ★★★ ここの設定を確認 ★★★
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DJANGO_SETTINGS_MODULE=config.settings
+      # --- 以下、データベース接続に必要な環境変数を追加 ---
+      # 例: PostgreSQL を別コンテナで動かしている場合
+      # - POSTGRES_DB=mydatabase
+      # - POSTGRES_USER=myuser
+      # - POSTGRES_PASSWORD=mypassword
+      # - DATABASE_HOST=db # DBサービスのコンテナ名
+      # - DATABASE_PORT=5432
+      # settings.py でこれらの環境変数を参照するようにしている場合
+      # depends_on:
+      #   - db # DBサービスがある場合は依存関係を設定
+    restart: always

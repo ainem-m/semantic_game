@@ -37,25 +37,18 @@ def ensure_word(text: str) -> Word:
     # まず存在確認
     try:
         word = Word.objects.get(text=text)
-        if word.embedding and word.tsne_x is not None and word.tsne_y is not None:
-            return word
+        return word
     except Word.DoesNotExist:
-        pass
-
-    # OpenAI から取得
-    resp = client.embeddings.create(
-        model="text-embedding-3-large",
-        input=text,
-    )
-    embedding = resp.data[0].embedding
-    x, y = calc_2d(embedding)
-
-    # 安全に更新
-    word, _ = Word.objects.update_or_create(
-        text=text,
-        defaults={"embedding": embedding, "tsne_x": float(x), "tsne_y": float(y)},
-    )
-    return word
+        # 新規単語
+        embedding = get_embedding(text)  # OpenAIから取得
+        # tsne_x, tsne_y はここでは設定せず、バッチ処理で計算・保存する
+        word = Word.objects.create(
+            text=text,
+            embedding=embedding,
+            tsne_x=None,  # 明示的にNoneで初期化
+            tsne_y=None,  # 明示的にNoneで初期化
+        )
+        return word
 
 
 def calc_score(target_emb, choice_embs):
@@ -67,21 +60,13 @@ def calc_score(target_emb, choice_embs):
     return int(round(product)), sims
 
 
-class WordListView(APIView):
-    def get(self, request):
-        words = Word.objects.all()
-        data = [
-            {"text": w.text, "x": w.tsne_x, "y": w.tsne_y}
-            for w in words
-            if w.tsne_x is not None
-        ]
-        return Response(data)
-
-
 class WordList(APIView):
     def get(self, request):
-        words = Word.objects.values_list("text", flat=True)
-        return Response(words)
+        words = Word.objects.filter(
+            tsne_x__isnull=False, tsne_y__isnull=False
+        )  # 座標があるものだけ
+        data = [{"text": w.text, "x": w.tsne_x, "y": w.tsne_y} for w in words]
+        return Response(data)
 
 
 class TargetView(APIView):

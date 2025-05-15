@@ -12,7 +12,7 @@
     <h1 class="text-2xl font-bold mb-4">Meaning Space Game</h1>
     <div id="scatter" class="w-full max-w-4xl h-96 bg-white shadow rounded mb-6"></div>
     <div class="bg-white shadow rounded p-4 w-full max-w-md">
-        <h2 class="font-semibold mb-2" id="target-word">Target: ...</h2>
+        <h2 class="font-semibold mb-2" id="target-word">target</h2>
         <form id="answer" class="space-y-2">
             <input name="w1" class="w-full border p-2 rounded" placeholder="単語 1" />
             <input name="w2" class="w-full border p-2 rounded" placeholder="単語 2" />
@@ -29,7 +29,7 @@
         function fetchTarget() {
             fetch("/api/target").then(r => r.json()).then(d => {
                 window.currentTargetId = d.id;
-                targetSpan.textContent = `Target: ${d.word.text}`;
+                targetSpan.textContent = `この言葉に似た言葉を3つ挙げよ: ${d.word.text}`;
             });
         }
         function fetchWords() {
@@ -81,7 +81,7 @@
             `;
 
                     // マップも更新
-                    fetchWords();
+                    //fetchWords();
                 })
                 .finally(() => {
                     // ボタン戻す
